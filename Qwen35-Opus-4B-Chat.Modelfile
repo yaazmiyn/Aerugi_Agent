@@ -1,0 +1,11 @@
+FROM C:\Users\lamar\.ollama\models\blobs\sha256-e1a4a9886699fecb153747ae97aeb413a7e6bd69da80037aa66cef9a3c656d85
+
+TEMPLATE """{{- if .System }}<|im_start|>system
+{{ .System }}<|im_end|>
+{{ end }}<|im_start|>user
+{{ .Prompt }}<|im_end|>
+<|im_start|>assistant
+"""
+
+PARAMETER stop "<|im_start|>"
+PARAMETER stop "<|im_end|>"

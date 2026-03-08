@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Hermes.exe Mission Control</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <canvas id="mission-scene" aria-hidden="true"></canvas>
+    <div class="nebula-overlay" aria-hidden="true"></div>
+    <div class="sparkle-overlay" aria-hidden="true"></div>
+    <div class="scanline-overlay" aria-hidden="true"></div>
+
+    <div class="app-shell">
+      <header class="window masthead-window">
+        <div class="title-bar">
+          <span>Hermes.exe Mission Control</span>
+          <div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div>
+        </div>
+
+        <div class="masthead-body">
+          <div class="brand-copy">
+            <p class="kicker">LOCAL VAPOR MISSION DESK</p>
+            <h1>Hermes.exe</h1>
+            <p class="lede">A local-first anime mission shell for research, business operations, structured memory, and approval-gated autonomy.</p>
+            <div class="page-nav" id="page-nav">
+              <button class="nav-button is-active" data-page="command-bridge" type="button">Command Bridge</button>
+              <button class="nav-button" data-page="memory-bay" type="button">Memory Bay</button>
+              <button class="nav-button" data-page="research-ops" type="button">Research Ops</button>
+              <button class="nav-button" data-page="company-ops" type="button">Company Ops</button>
+            </div>
+          </div>
+
+          <div class="masthead-side">
+            <div class="status-row">
+              <span class="status-chip">Loopback Only</span>
+              <span class="status-chip">Vault Canonical</span>
+              <span class="status-chip">Approval Gates</span>
+            </div>
+            <p id="status-ribbon" class="status-ribbon">Booting Hermes bridge...</p>
+            <div class="subsystem-strip">
+              <div class="mini-panel"><span>Memory</span><strong id="memory-mini-status">...</strong></div>
+              <div class="mini-panel"><span>Research</span><strong id="research-mini-status">...</strong></div>
+              <div class="mini-panel"><span>Company</span><strong id="company-mini-status">...</strong></div>
+            </div>
+            <div class="action-row">
+              <button id="save-state-btn" class="ui-button primary" type="button">Save Layout</button>
+              <button id="export-btn" class="ui-button" type="button">Export Log</button>
+              <button id="reset-btn" class="ui-button" type="button">New Session</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main class="page-stack">
+        <section class="page is-active" data-page="command-bridge">
+          <div class="command-grid">
+            <aside class="column left-column">
+              <section class="window panel-window">
+                <div class="title-bar">
+                  <span>System Link</span>
+                  <div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div>
+                </div>
+                <div class="panel-body">
+                  <div class="stat-stack">
+                    <div class="stat-row"><span>Hermes Runtime</span><strong id="hermes-runtime">Checking...</strong></div>
+                    <div class="stat-row"><span>Ollama Bridge</span><strong id="ollama-runtime">Checking...</strong></div>
+                    <div class="stat-row"><span>Model</span><strong id="model-runtime">Pending</strong></div>
+                    <div class="stat-row"><span>Workspace</span><strong id="workspace-label">Pending</strong></div>
+                  </div>
+                  <label class="field">
+                    <span class="field-label">Model Preset</span>
+                    <select id="model-select" class="ui-input">
+                      <option value="qwen35-opus-4b-fast">qwen35-opus-4b-fast</option>
+                      <option value="qwen35-opus-4b-deep">qwen35-opus-4b-deep</option>
+                    </select>
+                  </label>
+                  <div class="field">
+                    <span class="field-label">Workspace Mode</span>
+                    <div class="segmented" id="workspace-mode">
+                      <button class="segmented-btn" data-mode="research" type="button">Research</button>
+                      <button class="segmented-btn" data-mode="business" type="button">Business</button>
+                      <button class="segmented-btn" data-mode="strategy" type="button">Decision</button>
+                    </div>
+                  </div>
+                  <div class="field">
+                    <span class="field-label">Pinned Memory</span>
+                    <div class="notice-card compact"><strong id="context-count">0 notes</strong><p>Only selected vault notes are injected into Hermes context.</p></div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="window panel-window">
+                <div class="title-bar">
+                  <span>Security Lattice</span>
+                  <div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div>
+                </div>
+                <div class="panel-body">
+                  <div class="guardrail-list">
+                    <label class="guardrail-item"><input id="guard-internet" type="checkbox"><span>Request internet access</span></label>
+                    <label class="guardrail-item"><input id="guard-browser" type="checkbox"><span>Request browser tools</span></label>
+                    <label class="guardrail-item"><input id="guard-terminal" type="checkbox"><span>Request terminal tools</span></label>
+                    <label class="guardrail-item"><input id="guard-files" type="checkbox"><span>Request file tools</span></label>
+                    <label class="guardrail-item"><input id="guard-actions" type="checkbox"><span>Request external actions</span></label>
+                  </div>
+                  <div class="notice-card">
+                    <strong>Containment policy</strong>
+                    <p>Hermes stays local-first. Internet use, browser control, spend-bearing work, and outbound actions remain gated until you explicitly allow them.</p>
+                  </div>
+                </div>
+              </section>
+            </aside>
+
+            <section class="column center-column">
+              <section class="window hermes-window">
+                <div class="title-bar">
+                  <span>Hermes Live</span>
+                  <div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div>
+                </div>
+                <div class="hermes-window-body">
+                  <div class="avatar-stage">
+                    <canvas id="hermes-avatar" width="520" height="520" aria-label="Animated Hermes avatar"></canvas>
+                    <div class="avatar-badges">
+                      <span id="avatar-mood" class="chip">Idle</span>
+                      <span id="avatar-link" class="chip">Loopback</span>
+                    </div>
+                  </div>
+                  <div class="hermes-sidecar">
+                    <div class="speech-window">
+                      <p class="speech-label">Hermes Feed</p>
+                      <div id="hermes-speech" class="speech-bubble">Standing by in local mode.</div>
+                    </div>
+                    <div class="field">
+                      <span class="field-label">Quick Prompt Deck</span>
+                      <div class="prompt-grid">
+                        <button class="micro-button prompt-btn" type="button" data-prompt="Summarize the current problem, key assumptions, open questions, and the next best research step.">Research Brief</button>
+                        <button class="micro-button prompt-btn" type="button" data-prompt="Draft a clean action plan with priorities, risks, owners, and a short operating cadence.">Ops Plan</button>
+                        <button class="micro-button prompt-btn" type="button" data-prompt="Compare the main options, note downside risk, and recommend the best path with reasoning.">Decision Memo</button>
+                        <button class="micro-button prompt-btn" type="button" data-prompt="Turn my rough thoughts into a polished client-ready message with a confident tone.">Client Draft</button>
+                      </div>
+                    </div>
+                    <div class="meter-window">
+                      <div class="meter-row"><span>Signal</span><div class="meter"><i id="signal-meter"></i></div></div>
+                      <div class="meter-row"><span>Focus</span><div class="meter"><i id="focus-meter"></i></div></div>
+                      <div class="meter-row"><span>Memory</span><div class="meter"><i id="memory-meter"></i></div></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="window chat-window">
+                <div class="title-bar">
+                  <span>Chat Link</span>
+                  <div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div>
+                </div>
+                <div class="chat-window-body">
+                  <div id="chat-log" class="chat-log" aria-live="polite"></div>
+                  <form id="chat-form" class="composer">
+                    <label class="sr-only" for="chat-input">Message Hermes</label>
+                    <textarea id="chat-input" class="ui-input composer-input" rows="4" placeholder="Talk to Hermes about research, strategy, customer messages, planning, or business operations..."></textarea>
+                    <div class="composer-footer">
+                      <p id="chat-status" class="chat-status">Hermes is standing by.</p>
+                      <button id="send-btn" class="ui-button primary" type="submit">Transmit</button>
+                    </div>
+                  </form>
+                </div>
+              </section>
+            </section>
+
+            <aside class="column right-column">
+              <section class="window panel-window">
+                <div class="title-bar">
+                  <span>Mission Board</span>
+                  <div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div>
+                </div>
+                <div class="panel-body">
+                  <div class="segmented" id="board-tabs">
+                    <button class="segmented-btn" data-board="research" type="button">Research</button>
+                    <button class="segmented-btn" data-board="business" type="button">Business</button>
+                    <button class="segmented-btn" data-board="strategy" type="button">Decision</button>
+                  </div>
+                  <div id="board-list" class="board-list"></div>
+                  <button id="add-card-btn" class="ui-button" type="button">Add Mission Card</button>
+                </div>
+              </section>
+
+              <section class="window panel-window">
+                <div class="title-bar">
+                  <span>Skills Bay</span>
+                  <div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div>
+                </div>
+                <div class="panel-body skill-bay-body">
+                  <div class="segmented" id="skills-tabs">
+                    <button class="segmented-btn" data-skill-panel="gsd" type="button">GSD Pack</button>
+                    <button class="segmented-btn" data-skill-panel="openclaw" type="button">OpenClaw</button>
+                  </div>
+                  <label class="field">
+                    <span class="field-label">Skill Search</span>
+                    <input id="skill-search" class="ui-input" type="text" placeholder="Search workflows or skills">
+                  </label>
+                  <div id="gsd-panel" class="skill-panel"></div>
+                  <div id="openclaw-panel" class="skill-panel">
+                    <div class="folder-tabs" id="skill-category-tabs"></div>
+                    <div id="openclaw-list" class="skill-list"></div>
+                  </div>
+                </div>
+              </section>
+
+              <section class="window panel-window">
+                <div class="title-bar">
+                  <span>Captain Scratchpad</span>
+                  <div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div>
+                </div>
+                <div class="panel-body">
+                  <label class="sr-only" for="notes-input">Mission notes</label>
+                  <textarea id="notes-input" class="ui-input notes-input" rows="12" placeholder="Keep your session notes, current priorities, and operator reminders here."></textarea>
+                </div>
+              </section>
+            </aside>
+          </div>
+        </section>
+
+        <section class="page" data-page="memory-bay">
+          <div class="memory-grid">
+            <section class="window panel-window wide-window">
+              <div class="title-bar"><span>Vault Console</span><div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div></div>
+              <div class="panel-body double-panel">
+                <div class="stack-col">
+                  <label class="field"><span class="field-label">Vault Path</span><input id="vault-path-input" class="ui-input" type="text"></label>
+                  <div class="field split-field">
+                    <label class="field inline-field"><span class="field-label">Memory Mode</span><select id="memory-mode-select" class="ui-input"><option value="vault_plus_letta">Vault + Letta</option><option value="vault_only">Vault Only</option><option value="local_only">Local Only</option></select></label>
+                    <label class="field inline-field"><span class="field-label">Capture Mode</span><select id="capture-mode-select" class="ui-input"><option value="selective_auto">Selective Auto</option><option value="manual_only">Manual Only</option></select></label>
+                  </div>
+                  <div class="action-row"><button id="vault-bootstrap-btn" class="ui-button primary" type="button">Bootstrap Vault</button><button id="vault-refresh-btn" class="ui-button" type="button">Rebuild Index</button></div>
+                </div>
+                <div class="stack-col">
+                  <div class="stat-stack compact-stack">
+                    <div class="stat-row"><span>Vault Status</span><strong id="vault-status-label">Unknown</strong></div>
+                    <div class="stat-row"><span>Indexed Notes</span><strong id="vault-note-count">0</strong></div>
+                    <div class="stat-row"><span>Capture Queue</span><strong id="capture-count">0</strong></div>
+                    <div class="stat-row"><span>Last Vault Sync</span><strong id="vault-sync-at">Never</strong></div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="window panel-window">
+              <div class="title-bar"><span>Vault Index</span><div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div></div>
+              <div class="panel-body">
+                <label class="field"><span class="field-label">Search Notes</span><input id="vault-search" class="ui-input" type="text" placeholder="Search title, summary, or type"></label>
+                <div id="vault-note-list" class="note-list"></div>
+              </div>
+            </section>
+
+            <section class="window panel-window">
+              <div class="title-bar"><span>Capture Queue</span><div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div></div>
+              <div class="panel-body"><div id="capture-queue" class="capture-list"></div></div>
+            </section>
+
+            <section class="window panel-window">
+              <div class="title-bar"><span>Letta Relay</span><div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div></div>
+              <div class="panel-body">
+                <label class="field"><span class="field-label">Letta Base URL</span><input id="letta-base-url-input" class="ui-input" type="text"></label>
+                <label class="field"><span class="field-label">Letta Agent ID</span><input id="letta-agent-id-input" class="ui-input" type="text"></label>
+                <div class="action-row"><button id="letta-test-btn" class="ui-button" type="button">Test Link</button><button id="letta-sync-btn" class="ui-button primary" type="button">Sync Approved Memory</button></div>
+                <div class="stat-stack compact-stack">
+                  <div class="stat-row"><span>Mode</span><strong id="letta-mode">Pending</strong></div>
+                  <div class="stat-row"><span>MemFS Notes</span><strong id="letta-memfs-count">0</strong></div>
+                  <div class="stat-row"><span>Last Sync</span><strong id="letta-sync-at">Never</strong></div>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="page" data-page="research-ops">
+          <div class="research-grid">
+            <section class="window panel-window">
+              <div class="title-bar"><span>Mission Builder</span><div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div></div>
+              <div class="panel-body">
+                <label class="field"><span class="field-label">Mission Title</span><input id="mission-title-input" class="ui-input" type="text" placeholder="Example: Market map for a new offer"></label>
+                <label class="field"><span class="field-label">Objective</span><textarea id="mission-objective-input" class="ui-input" rows="4" placeholder="What should this mission discover, design, or produce?"></textarea></label>
+                <label class="field"><span class="field-label">Scope</span><textarea id="mission-scope-input" class="ui-input" rows="3" placeholder="Constrain the mission and define the lane."></textarea></label>
+                <div class="field split-field">
+                  <label class="field inline-field"><span class="field-label">Network Policy</span><select id="mission-network-select" class="ui-input"><option value="local-only">Local Only</option><option value="approval-required">Approval Required</option><option value="web-enabled">Web Enabled</option></select></label>
+                  <label class="field inline-field"><span class="field-label">Schedule</span><input id="mission-schedule-input" class="ui-input" type="text" value="manual"></label>
+                </div>
+                <label class="field"><span class="field-label">Output Targets</span><input id="mission-targets-input" class="ui-input" type="text" value="vault-note, brief"></label>
+                <button id="create-mission-btn" class="ui-button primary" type="button">Create Mission</button>
+              </div>
+            </section>
+
+            <section class="window panel-window wide-window">
+              <div class="title-bar"><span>Mission Deck</span><div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div></div>
+              <div class="panel-body"><div id="research-mission-list" class="mission-list"></div></div>
+            </section>
+
+            <section class="window panel-window">
+              <div class="title-bar"><span>Artifact Viewer</span><div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div></div>
+              <div class="panel-body artifact-body">
+                <div id="research-selected-label" class="notice-card compact"><strong>No mission selected</strong><p>Select a mission to run or promote.</p></div>
+                <pre id="research-artifact-output" class="artifact-output">Mission artifacts will appear here.</pre>
+                <div class="action-row"><button id="run-mission-btn" class="ui-button primary" type="button">Run Mission</button><button id="promote-mission-btn" class="ui-button" type="button">Promote to Vault</button><button id="schedule-mission-btn" class="ui-button" type="button">Save Schedule</button></div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="page" data-page="company-ops">
+          <div class="company-grid">
+            <section class="window panel-window">
+              <div class="title-bar"><span>Company Link</span><div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div></div>
+              <div class="panel-body">
+                <label class="field"><span class="field-label">Paperclip Base URL</span><input id="paperclip-base-url-input" class="ui-input" type="text"></label>
+                <label class="field"><span class="field-label">Company ID</span><input id="paperclip-company-id-input" class="ui-input" type="text"></label>
+                <div class="action-row"><button id="company-test-btn" class="ui-button" type="button">Test Link</button><button id="company-sync-btn" class="ui-button primary" type="button">Sync Status</button></div>
+                <div class="stat-stack compact-stack">
+                  <div class="stat-row"><span>Mode</span><strong id="company-mode-label">Pending</strong></div>
+                  <div class="stat-row"><span>Queue</span><strong id="company-queue-count">0</strong></div>
+                  <div class="stat-row"><span>Company</span><strong id="company-id-label">-</strong></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="window panel-window">
+              <div class="title-bar"><span>Overview</span><div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div></div>
+              <div class="panel-body">
+                <div id="company-overview-card" class="notice-card"></div>
+                <div id="company-approval-queue" class="approval-list"></div>
+              </div>
+            </section>
+
+            <section class="window panel-window">
+              <div class="title-bar"><span>Agents</span><div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div></div>
+              <div class="panel-body"><div id="company-agent-list" class="agent-list"></div></div>
+            </section>
+
+            <section class="window panel-window wide-window">
+              <div class="title-bar"><span>Tickets</span><div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div></div>
+              <div class="panel-body"><div id="company-ticket-list" class="ticket-list"></div></div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast-deck" class="toast-deck" aria-live="polite"></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,16 @@
+{
+  "name": "new-project",
+  "version": "1.0.0",
+  "description": "Local Hermes Mission Control with a Three.js interface",
+  "main": "server.py",
+  "scripts": {
+    "start": "powershell -ExecutionPolicy Bypass -File .\\start-mission-control.ps1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "three": "^0.183.2"
+  }
+}

@@ -45,6 +45,10 @@ HERMES_ROOT = Path.home() / "AppData" / "Local" / "hermes" / "hermes-agent"
 if str(HERMES_ROOT) not in sys.path:
     sys.path.insert(0, str(HERMES_ROOT))
 
+# ACE self-improvement
+ACE_CONTEXT_DELTA_PATH = ROOT / ".letta" / "memory" / "hermes_context_delta.md"
+ACE_OLLAMA_BASE = OLLAMA_BASE_URL.replace("/v1", "")
+
 try:
     from run_agent import AIAgent  # type: ignore  # noqa: E402
     from toolsets import get_toolset_names  # type: ignore  # noqa: E402
@@ -264,6 +268,36 @@ def default_state() -> dict[str, Any]:
     company = default_company_workspace()
     return {"active_page": "command-bridge", "current_model": DEFAULT_MODEL, "workspace_mode": "research", "armed_workflows": ["gsd:quick"], "armed_skills": [], "guardrails": {"internet_access_requested": False, "browser_tools_requested": False, "terminal_tools_requested": False, "external_actions_requested": False, "file_tools_requested": False}, "notes": "Session scratchpad:\n- Use Hermes as a local research and business copilot.\n- Promote durable knowledge into the Obsidian vault.\n- Keep internet access disabled unless you explicitly approve it.", "boards": {"research": [make_card("scan", "Signal Scan", "Queued", "Collect questions, assumptions, and leads before asking Hermes for synthesis."), make_card("brief", "Brief Draft", "Ready", "Turn active findings into a concise memo or operating note.")], "business": [make_card("ops", "Ops Watch", "Active", "Track the next few actions that move revenue, customer work, or delivery."), make_card("clients", "Client Queue", "Queued", "Use Hermes for reply drafts, meeting prep, and follow-up copy.")], "strategy": [make_card("decide", "Decision Stack", "Standby", "When a choice matters, ask for options, downside risk, and a recommendation.")]}, "chat_log": [], "vault_path": str(default_vault_path()), "letta_base_url": DEFAULT_LETTA_BASE_URL, "letta_agent_id": "hermes-memory", "memory_mode": "vault_plus_letta", "capture_mode": "selective_auto", "capture_queue": [], "selected_context_note_ids": [], "last_vault_sync_at": None, "last_letta_sync_at": None, "research_missions": default_research_missions(), "paperclip_base_url": DEFAULT_PAPERCLIP_BASE_URL, "paperclip_company_id": "aerugi-hq", "paperclip_approval_queue": default_approval_queue(company), "company_workspace": company, "updated_at": utc_now()}
 
+
+class HermesDataProcessor:
+    """ACE DataProcessor for Hermes chat transcripts."""
+
+    def __init__(self, transcript: list[dict]) -> None:
+        self.transcript = transcript
+
+    def process_task_data(self) -> list[dict]:
+        pairs = []
+        msgs = self.transcript
+        for i in range(0, len(msgs) - 1, 2):
+            if msgs[i].get("role") == "user" and i + 1 < len(msgs) and msgs[i + 1].get("role") == "assistant":
+                pairs.append({
+                    "input": msgs[i]["content"],
+                    "output": msgs[i + 1]["content"],
+                    "task_id": f"turn_{i // 2}",
+                })
+        return pairs
+
+    def answer_is_correct(self, task: dict, prediction: str) -> bool:
+        p = (prediction or "").strip()
+        return bool(p) and not p.lower().startswith("error") and len(p) > 20
+
+    def evaluate_accuracy(self, tasks: list[dict], predictions: list[str]) -> float:
+        if not tasks:
+            return 0.0
+        correct = sum(1 for t, p in zip(tasks, predictions) if self.answer_is_correct(t, p))
+        return correct / len(tasks)
+
+
 class MissionControlService:
     def __init__(self) -> None:
         self.lock = threading.RLock()
@@ -384,7 +418,7 @@ class MissionControlService:
             f"files={'requested' if requested.get('file_tools_requested') else 'locked'}",
             f"external_actions={'requested' if requested.get('external_actions_requested') else 'locked'}",
         ])
-        return (
+        base_prompt = (
             "You are Hermes Mission Control, a local-first operator for research, planning, and business execution. "
             f"{self._workspace_instruction()} "
             "Current runtime restrictions: no internet access, no browser automation, no terminal execution, no file mutation outside approved local flows, and no external actions. "
@@ -392,6 +426,15 @@ class MissionControlService:
             "Treat armed OpenClaw skills as playbooks, not executable capabilities. When useful, format answers as a brief, action list, memo, meeting draft, or operating plan. "
             f"Guardrail request panel state: {request_summary}. Armed GSD workflows: {workflows}. Armed OpenClaw skills: {skills}. {self._selected_context_summary()}"
         )
+        # Inject ACE delta if available
+        if ACE_CONTEXT_DELTA_PATH.exists():
+            try:
+                delta_text = ACE_CONTEXT_DELTA_PATH.read_text(encoding="utf-8").strip()
+                if delta_text:
+                    base_prompt += f"\n\nAdaptive context (ACE delta — accumulated strategies):\n{delta_text[-1200:]}"
+            except Exception:
+                pass
+        return base_prompt
 
     def _prefill_messages(self) -> list[dict[str, str]]:
         valid = []
@@ -414,11 +457,79 @@ class MissionControlService:
 
     def reset_session(self, wipe_chat_log: bool = False) -> dict[str, Any]:
         with self.lock:
+            log_snapshot = list(self.state.get("chat_log", []))
             if wipe_chat_log:
                 self.state["chat_log"] = []
             self.agent = self._build_agent()
             self._save_state()
-            return self.get_status()
+
+        # Fire ACE in background so reset returns immediately
+        def _ace_bg():
+            try:
+                self.run_ace_loop(log_snapshot)
+            except Exception:
+                pass
+        threading.Thread(target=_ace_bg, daemon=True).start()
+
+        return self.get_status()
+
+    def run_ace_loop(self, transcript: list[dict] | None = None) -> dict[str, Any]:
+        """Run an ACE self-improvement cycle on the current (or provided) chat transcript."""
+        with self.lock:
+            log = transcript if transcript is not None else list(self.state.get("chat_log", []))
+
+        if len(log) < 4:
+            return {"ok": True, "skipped": True, "reason": "Transcript too short for ACE (need >= 4 turns)."}
+
+        timestamp = utc_now()
+
+        # Try ACE package first, fall back to direct Ollama call
+        delta = None
+        try:
+            from ace import ACE
+            import openai
+            client = openai.OpenAI(base_url=OLLAMA_BASE_URL, api_key="ollama")
+            processor = HermesDataProcessor(log)
+            ace_instance = ACE(client=client, model=DEFAULT_MODEL)
+            result = ace_instance.run(mode="offline", data_processor=processor)
+            delta = result.get("context_delta") or result.get("curator_output") or str(result)
+        except Exception:
+            # Fallback: ask Ollama directly to extract strategies
+            try:
+                pairs = HermesDataProcessor(log).process_task_data()
+                if not pairs:
+                    return {"ok": True, "skipped": True, "reason": "No usable exchange pairs in transcript."}
+                snippet = "\n".join(f"User: {p['input'][:300]}\nHermes: {p['output'][:300]}" for p in pairs[:8])
+                prompt = (
+                    "You are a context curator. Analyze this conversation between a user and Hermes. "
+                    "Extract 3-5 concrete strategy notes or lessons: what worked, what failed, "
+                    "how to approach similar tasks better next time. "
+                    "Be specific and actionable. Use bullet points. Keep each point under 2 sentences.\n\n"
+                    f"Conversation:\n{snippet}\n\nStrategies:"
+                )
+                payload = json.dumps({"model": DEFAULT_MODEL, "messages": [{"role": "user", "content": prompt}], "stream": False})
+                req = Request(f"{OLLAMA_BASE_URL}/chat/completions", data=payload.encode(), headers={"Content-Type": "application/json"})
+                with urlopen(req, timeout=60) as resp:
+                    body = json.loads(resp.read())
+                    delta = body["choices"][0]["message"]["content"].strip()
+            except Exception as exc:
+                return {"ok": False, "error": f"ACE fallback also failed: {exc}", "trace": traceback.format_exc(limit=4)}
+
+        if not delta:
+            return {"ok": True, "skipped": True, "reason": "ACE produced no delta."}
+
+        # Write delta to .letta/memory folder
+        ACE_CONTEXT_DELTA_PATH.parent.mkdir(parents=True, exist_ok=True)
+        existing = ACE_CONTEXT_DELTA_PATH.read_text(encoding="utf-8") if ACE_CONTEXT_DELTA_PATH.exists() else ""
+        entry = f"\n\n---\n## ACE Delta — {timestamp}\n\n{delta.strip()}\n"
+        ACE_CONTEXT_DELTA_PATH.write_text(existing + entry, encoding="utf-8")
+
+        with self.lock:
+            self.state["last_ace_run_at"] = timestamp
+            self.state["last_ace_delta_summary"] = delta[:200].strip()
+            self._save_state()
+
+        return {"ok": True, "delta_summary": delta[:200], "timestamp": timestamp}
 
     def _ollama_status(self) -> dict[str, Any]:
         try:
@@ -847,6 +958,14 @@ class MissionRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/company/tickets":
             self._write_json(HTTPStatus.OK, SERVICE.company_tickets())
             return
+        if parsed.path == "/api/ace/status":
+            self._write_json(HTTPStatus.OK, {
+                "ok": True,
+                "last_run_at": SERVICE.state.get("last_ace_run_at"),
+                "last_delta_summary": SERVICE.state.get("last_ace_delta_summary"),
+                "delta_file_exists": ACE_CONTEXT_DELTA_PATH.exists(),
+            })
+            return
         if parsed.path == "/favicon.ico":
             self.send_response(HTTPStatus.NO_CONTENT)
             self.end_headers()
@@ -902,6 +1021,10 @@ class MissionRequestHandler(SimpleHTTPRequestHandler):
                 return
             if parsed.path == "/api/company/test":
                 self._write_json(HTTPStatus.OK, SERVICE._paperclip_status())
+                return
+            if parsed.path == "/api/ace/run":
+                transcript = body.get("transcript")
+                self._write_json(HTTPStatus.OK, SERVICE.run_ace_loop(transcript))
                 return
             self._write_json(HTTPStatus.NOT_FOUND, {"ok": False, "error": "Route not found."})
         except Exception as exc:

@@ -468,3 +468,64 @@ body::before {
   .message { grid-template-columns: 1fr; }
   .avatar-stage { min-height: 320px; }
 }
+
+/* ── Ghost Button ────────────────────────────────── */
+.btn-ghost {
+  appearance: none;
+  border: 1px solid var(--line-soft);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.78rem;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.btn-ghost:hover {
+  background: rgba(255,255,255,0.5);
+  border-color: var(--line);
+}
+.btn-sm { padding: 4px 8px; font-size: 0.72rem; }
+
+/* ── ACE Status Bar ─────────────────────────────── */
+.ace-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 0.72rem;
+  color: var(--ink);
+}
+.ace-label {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--lilac-400);
+}
+.ace-pill {
+  padding: 2px 8px;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  background: var(--lilac-200);
+  color: var(--ink-strong);
+  transition: background 300ms ease, color 300ms ease;
+}
+.ace-pill[data-ace-state="running"] {
+  background: var(--warning);
+  color: #7a4010;
+  animation: acePulse 1.2s ease-in-out infinite;
+}
+.ace-pill[data-ace-state="updated"] {
+  background: var(--success);
+  color: #1a5c50;
+}
+.ace-pill[data-ace-state="error"] {
+  background: var(--danger);
+  color: #7a1530;
+}
+.ace-run-btn { margin-left: auto; font-size: 0.68rem; padding: 2px 8px; }
+@keyframes acePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}

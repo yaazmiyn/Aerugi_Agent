@@ -48,6 +48,7 @@
               <button id="save-state-btn" class="ui-button primary" type="button">Save Layout</button>
               <button id="export-btn" class="ui-button" type="button">Export Log</button>
               <button id="reset-btn" class="ui-button" type="button">New Session</button>
+              <button id="ace-header-run-btn" class="btn-ghost btn-sm" data-help="Trigger ACE improvement cycle on current session">&#x27F3; ACE</button>
             </div>
           </div>
         </div>
@@ -146,6 +147,11 @@
                       <div class="meter-row"><span>Memory</span><div class="meter"><i id="memory-meter"></i></div></div>
                     </div>
                   </div>
+                </div>
+                <div class="ace-status-bar" id="ace-status-bar">
+                  <span class="ace-label">ACE</span>
+                  <span class="ace-pill" id="ace-pill" data-ace-state="idle">idle</span>
+                  <button class="btn-ghost ace-run-btn" id="ace-run-btn" data-help="Run ACE self-improvement cycle now">Run Now</button>
                 </div>
               </section>
 

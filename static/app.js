@@ -127,6 +127,53 @@ async function fetchJSON(url, options = {}) {
   return payload;
 }
 
+// ── ACE Self-Improvement ──────────────────────────
+const aceState = { status: "idle", lastRun: null };
+
+function setAceStatus(status, label) {
+  aceState.status = status;
+  const pill = document.getElementById("ace-pill");
+  if (pill) {
+    pill.dataset.aceState = status;
+    pill.textContent = label || status;
+  }
+}
+
+async function runAce(transcript) {
+  setAceStatus("running", "running\u2026");
+  try {
+    const body = transcript ? { transcript } : {};
+    const result = await fetchJSON("/api/ace/run", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    if (result.skipped) {
+      setAceStatus("idle", "idle (short)");
+    } else {
+      setAceStatus("updated", "updated \u2713");
+      aceState.lastRun = result.timestamp;
+      setTimeout(() => setAceStatus("idle", "idle"), 8000);
+    }
+  } catch (err) {
+    setAceStatus("error", "error");
+    console.warn("ACE run failed:", err.message);
+    setTimeout(() => setAceStatus("idle", "idle"), 5000);
+  }
+}
+
+async function initAce() {
+  const status = await fetchJSON("/api/ace/status").catch(() => null);
+  if (status?.last_run_at) {
+    setAceStatus("idle", "idle");
+  }
+  const wireBtn = (id) => {
+    const btn = document.getElementById(id);
+    if (btn) btn.addEventListener("click", () => runAce());
+  };
+  wireBtn("ace-run-btn");
+  wireBtn("ace-header-run-btn");
+}
+
 function setActive(buttons, value, key) { buttons.forEach((button) => button.classList.toggle("is-active", button.dataset[key] === value)); }
 function labelTime(value) { return value ? value.replace("T", " ").replace("Z", "") : "Never"; }
 function trimText(value, limit = 180) { const text = String(value || "").replace(/\s+/g, " ").trim(); return text.length <= limit ? text : `${text.slice(0, Math.max(0, limit - 3)).trim()}...`; }
@@ -593,7 +640,7 @@ function bindEvents() {
     link.href = url; link.download = payload.filename; link.click(); URL.revokeObjectURL(url);
     toast("Export", "Session log exported.");
   });
-  elements.resetButton.addEventListener("click", async () => { const payload = await fetchJSON("/api/reset", { method: "POST", body: JSON.stringify({ wipe_chat_log: true }) }); applyStatus(payload); renderChat(); toast("Session", "Chat session reset."); });
+  elements.resetButton.addEventListener("click", async () => { runAce(); const payload = await fetchJSON("/api/reset", { method: "POST", body: JSON.stringify({ wipe_chat_log: true }) }); applyStatus(payload); renderChat(); toast("Session", "Chat session reset."); });
   elements.vaultPathInput.addEventListener("change", () => queuePatch({ vault_path: elements.vaultPathInput.value }));
   elements.memoryModeSelect.addEventListener("change", () => queuePatch({ memory_mode: elements.memoryModeSelect.value }));
   elements.captureModeSelect.addEventListener("change", () => queuePatch({ capture_mode: elements.captureModeSelect.value }));
@@ -711,6 +758,7 @@ function initScene() {
 async function init() {
   bindEvents();
   initScene();
+  initAce();
   requestAnimationFrame(drawAvatar);
   try {
     await loadApp();

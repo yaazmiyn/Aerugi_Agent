@@ -277,6 +277,63 @@
                 </div>
               </div>
             </section>
+
+            <section id="vault-editor-window" class="window panel-window vault-editor-window">
+              <div class="title-bar">
+                <span>Vault Editor</span>
+                <div class="title-bar-actions">
+                  <button class="btn-ghost btn-xs" id="vault-new-note-btn" data-help="Create a new vault note">+ New Note</button>
+                </div>
+                <div class="title-buttons" aria-hidden="true"><span></span><span></span><span></span></div>
+              </div>
+              <div class="panel-body vault-editor-body">
+                <div class="vault-tree-panel" id="vault-tree-panel">
+                  <div class="vault-tree-header">
+                    <span>Vault</span>
+                    <button class="btn-ghost btn-xs" id="vault-refresh-tree-btn" data-help="Refresh vault file tree">&#8635;</button>
+                  </div>
+                  <div id="vault-tree-list" class="vault-tree-list">
+                    <p class="muted">Loading vault…</p>
+                  </div>
+                </div>
+                <div class="vault-note-panel" id="vault-note-panel">
+                  <div class="vault-note-toolbar" id="vault-note-toolbar" style="display:none">
+                    <span class="vault-note-title-display" id="vault-note-title-display"></span>
+                    <div class="vault-note-actions">
+                      <button class="btn-ghost btn-xs" id="vault-edit-toggle-btn">Edit</button>
+                      <button class="btn-primary btn-xs" id="vault-save-btn" style="display:none">Save</button>
+                    </div>
+                  </div>
+                  <div id="vault-note-preview" class="vault-note-preview">
+                    <p class="muted center">Select a note from the vault tree.</p>
+                  </div>
+                  <textarea id="vault-note-editor" class="vault-note-editor" style="display:none" spellcheck="false"></textarea>
+                </div>
+              </div>
+              <div class="vault-new-note-modal" id="vault-new-note-modal" style="display:none">
+                <div class="modal-inner">
+                  <h3>New Vault Note</h3>
+                  <label>Title <input type="text" id="new-note-title" placeholder="Note title…" /></label>
+                  <label>Type
+                    <select id="new-note-type">
+                      <option value="knowledge">Knowledge</option>
+                      <option value="research">Research</option>
+                      <option value="decision">Decision</option>
+                      <option value="memory">Memory</option>
+                      <option value="meeting">Meeting</option>
+                      <option value="project">Project</option>
+                      <option value="protocol">Protocol</option>
+                    </select>
+                  </label>
+                  <label>Summary <input type="text" id="new-note-summary" placeholder="One-line summary…" /></label>
+                  <label>Body <textarea id="new-note-body" rows="4" placeholder="Note body…"></textarea></label>
+                  <div class="modal-actions">
+                    <button class="btn-primary" id="new-note-create-btn">Create Note</button>
+                    <button class="btn-ghost" id="new-note-cancel-btn">Cancel</button>
+                  </div>
+                </div>
+              </div>
+            </section>
           </div>
         </section>
 

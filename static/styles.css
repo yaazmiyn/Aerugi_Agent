@@ -486,6 +486,19 @@ body::before {
   border-color: var(--line);
 }
 .btn-sm { padding: 4px 8px; font-size: 0.72rem; }
+.btn-xs { padding: 3px 7px; font-size: 0.68rem; }
+.btn-primary {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(205,255,244,0.95), rgba(255, 213, 233, 0.95));
+  color: var(--ink-strong);
+  cursor: pointer;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.78rem;
+  transition: transform 140ms ease, background 140ms ease;
+}
+.btn-primary:hover { transform: translateY(-1px); }
 
 /* ── ACE Status Bar ─────────────────────────────── */
 .ace-status-bar {
@@ -529,3 +542,142 @@ body::before {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.55; }
 }
+
+/* ── Vault Editor ─────────────────────────────────── */
+.vault-editor-window { min-height: 420px; }
+.vault-editor-body {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  height: calc(100% - 36px);
+  overflow: hidden;
+}
+.vault-tree-panel {
+  border-right: 1px solid var(--line-soft);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.vault-tree-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink);
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--paper-strong);
+}
+.vault-tree-list { flex: 1; overflow-y: auto; padding: 6px 0; }
+.vault-folder-name {
+  padding: 4px 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  user-select: none;
+}
+.vault-folder-name:hover { background: var(--rose-100); }
+.vault-note-item {
+  padding: 4px 10px 4px 20px;
+  font-size: 0.73rem;
+  cursor: pointer;
+  color: var(--ink);
+  border-left: 2px solid transparent;
+  transition: background 120ms, border-color 120ms;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vault-note-item:hover { background: var(--rose-100); }
+.vault-note-item.is-active {
+  background: var(--lilac-200);
+  border-left-color: var(--lilac-400);
+  font-weight: 600;
+}
+.vault-note-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.vault-note-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--paper-strong);
+  font-size: 0.75rem;
+  gap: 8px;
+}
+.vault-note-title-display {
+  font-weight: 600;
+  color: var(--ink-strong);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vault-note-actions { display: flex; gap: 6px; }
+.vault-note-preview {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 16px;
+  font-size: 0.82rem;
+  line-height: 1.65;
+  color: var(--ink);
+}
+.vault-note-editor {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 14px 16px;
+  font-family: "Fira Code", "Consolas", monospace;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  resize: none;
+  background: transparent;
+  color: var(--ink);
+}
+.vault-new-note-modal {
+  position: absolute;
+  inset: 0;
+  background: rgba(255,248,253,0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  backdrop-filter: blur(4px);
+}
+.vault-new-note-modal .modal-inner {
+  background: var(--paper-strong);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 20px 24px;
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-shadow: var(--shadow-soft);
+}
+.vault-new-note-modal h3 { font-size: 0.9rem; font-weight: 700; color: var(--ink-strong); margin: 0 0 4px; }
+.vault-new-note-modal label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 0.72rem;
+  color: var(--ink);
+}
+.vault-new-note-modal input,
+.vault-new-note-modal select,
+.vault-new-note-modal textarea {
+  padding: 5px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  font-size: 0.76rem;
+  background: var(--paper);
+  color: var(--ink);
+}
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }

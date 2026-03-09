@@ -4,6 +4,18 @@ const $ = (id) => document.getElementById(id);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 const PAGE_IDS = new Set(["command-bridge", "memory-bay", "research-ops", "company-ops"]);
 
+const PALETTE_COLORS = {
+  blossom: { primary: 0xff6eb4, secondary: 0xa855f7, accent: 0xffd5df },
+  vapor:   { primary: 0x00ffff, secondary: 0xff00ff, accent: 0xb8a2ff },
+  mint:    { primary: 0x2dd4bf, secondary: 0x4ade80, accent: 0xb6f0e4 },
+  sunset:  { primary: 0xfb923c, secondary: 0xfbbf24, accent: 0xffc9c2 },
+};
+
+function getCurrentPaletteColors() {
+  const palette = document.body.dataset.uiPalette || "blossom";
+  return PALETTE_COLORS[palette] || PALETTE_COLORS.blossom;
+}
+
 const elements = {
   statusRibbon: $("status-ribbon"),
   memoryMiniStatus: $("memory-mini-status"),
@@ -172,6 +184,161 @@ async function initAce() {
   };
   wireBtn("ace-run-btn");
   wireBtn("ace-header-run-btn");
+}
+
+// ── Vault Editor ──────────────────────────────────
+const vaultEditor = { currentPath: null, isEditing: false, treeData: [] };
+
+function renderMarkdown(md) {
+  return md
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/^---[\s\S]*?---\n/, "")
+    .replace(/^#{1}\s(.+)$/gm, "<h1>$1</h1>")
+    .replace(/^#{2}\s(.+)$/gm, "<h2>$1</h2>")
+    .replace(/^#{3}\s(.+)$/gm, "<h3>$1</h3>")
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/\*(.+?)\*/g, "<em>$1</em>")
+    .replace(/`(.+?)`/g, "<code>$1</code>")
+    .replace(/^- (.+)$/gm, "<li>$1</li>")
+    .replace(/\n\n/g, "<br><br>");
+}
+
+async function loadVaultTree() {
+  const treeEl = document.getElementById("vault-tree-list");
+  if (!treeEl) return;
+  treeEl.innerHTML = '<p class="muted">Loading…</p>';
+  try {
+    const data = await fetchJSON("/api/vault/tree");
+    vaultEditor.treeData = data.tree || [];
+    renderVaultTree(vaultEditor.treeData);
+  } catch (err) {
+    treeEl.innerHTML = '<p class="muted">Could not load vault.</p>';
+  }
+}
+
+function renderVaultTree(tree) {
+  const treeEl = document.getElementById("vault-tree-list");
+  if (!treeEl) return;
+  if (!tree.length) {
+    treeEl.innerHTML = '<p class="muted" style="padding:10px">Vault empty. Bootstrap it first.</p>';
+    return;
+  }
+  treeEl.innerHTML = tree.map(f =>
+    '<div class="vault-folder-group">' +
+    '<div class="vault-folder-name">' + f.folder + '</div>' +
+    f.notes.map(n =>
+      '<div class="vault-note-item" data-note-path="' + n.relative_path + '" title="' + n.title + '">' + n.title + '</div>'
+    ).join("") +
+    '</div>'
+  ).join("");
+  treeEl.querySelectorAll(".vault-note-item").forEach(item => {
+    item.addEventListener("click", () => openVaultNote(item.dataset.notePath, item.textContent.trim()));
+  });
+}
+
+async function openVaultNote(relativePath, title) {
+  document.querySelectorAll(".vault-note-item").forEach(el => {
+    el.classList.toggle("is-active", el.dataset.notePath === relativePath);
+  });
+  vaultEditor.currentPath = relativePath;
+  vaultEditor.isEditing = false;
+  const toolbar = document.getElementById("vault-note-toolbar");
+  const titleEl = document.getElementById("vault-note-title-display");
+  const preview = document.getElementById("vault-note-preview");
+  const editor = document.getElementById("vault-note-editor");
+  const editBtn = document.getElementById("vault-edit-toggle-btn");
+  const saveBtn = document.getElementById("vault-save-btn");
+  toolbar.style.display = "flex";
+  titleEl.textContent = title;
+  preview.innerHTML = '<p class="muted">Loading…</p>';
+  preview.style.display = "block";
+  editor.style.display = "none";
+  editBtn.textContent = "Edit";
+  saveBtn.style.display = "none";
+  try {
+    const data = await fetchJSON("/api/vault/note?path=" + encodeURIComponent(relativePath));
+    preview.innerHTML = renderMarkdown(data.raw);
+    editor.value = data.raw;
+  } catch (err) {
+    preview.innerHTML = '<p class="muted">Could not load note.</p>';
+  }
+}
+
+async function saveVaultNote() {
+  if (!vaultEditor.currentPath) return;
+  const editor = document.getElementById("vault-note-editor");
+  const saveBtn = document.getElementById("vault-save-btn");
+  saveBtn.textContent = "Saving…";
+  try {
+    await fetchJSON("/api/vault/note", {
+      method: "POST",
+      body: JSON.stringify({ path: vaultEditor.currentPath, content: editor.value }),
+    });
+    document.getElementById("vault-note-preview").innerHTML = renderMarkdown(editor.value);
+    saveBtn.textContent = "Saved \u2713";
+    setTimeout(() => { saveBtn.textContent = "Save"; }, 2000);
+  } catch (err) {
+    saveBtn.textContent = "Error";
+    setTimeout(() => { saveBtn.textContent = "Save"; }, 2000);
+  }
+}
+
+async function createVaultNote() {
+  const title = document.getElementById("new-note-title").value.trim();
+  const type = document.getElementById("new-note-type").value;
+  const summary = document.getElementById("new-note-summary").value.trim();
+  const body = document.getElementById("new-note-body").value.trim();
+  if (!title) { document.getElementById("new-note-title").focus(); return; }
+  const btn = document.getElementById("new-note-create-btn");
+  btn.textContent = "Creating…";
+  try {
+    await fetchJSON("/api/vault/note/new", {
+      method: "POST",
+      body: JSON.stringify({ type, title, summary, body }),
+    });
+    document.getElementById("vault-new-note-modal").style.display = "none";
+    btn.textContent = "Create Note";
+    // Reset form
+    document.getElementById("new-note-title").value = "";
+    document.getElementById("new-note-summary").value = "";
+    document.getElementById("new-note-body").value = "";
+    await loadVaultTree();
+  } catch (err) {
+    btn.textContent = "Error";
+    setTimeout(() => { btn.textContent = "Create Note"; }, 2000);
+  }
+}
+
+function initVaultEditor() {
+  const editToggle = document.getElementById("vault-edit-toggle-btn");
+  const saveBtn = document.getElementById("vault-save-btn");
+  const newNoteBtn = document.getElementById("vault-new-note-btn");
+  const refreshBtn = document.getElementById("vault-refresh-tree-btn");
+  const modal = document.getElementById("vault-new-note-modal");
+  const createBtn = document.getElementById("new-note-create-btn");
+  const cancelBtn = document.getElementById("new-note-cancel-btn");
+
+  if (editToggle) editToggle.addEventListener("click", () => {
+    const preview = document.getElementById("vault-note-preview");
+    const editor = document.getElementById("vault-note-editor");
+    vaultEditor.isEditing = !vaultEditor.isEditing;
+    preview.style.display = vaultEditor.isEditing ? "none" : "block";
+    editor.style.display = vaultEditor.isEditing ? "block" : "none";
+    editToggle.textContent = vaultEditor.isEditing ? "Preview" : "Edit";
+    if (saveBtn) saveBtn.style.display = vaultEditor.isEditing ? "inline-flex" : "none";
+  });
+  if (saveBtn) saveBtn.addEventListener("click", saveVaultNote);
+  if (refreshBtn) refreshBtn.addEventListener("click", loadVaultTree);
+  if (newNoteBtn) newNoteBtn.addEventListener("click", () => {
+    if (modal) { modal.style.display = "flex"; document.getElementById("new-note-title")?.focus(); }
+  });
+  if (createBtn) createBtn.addEventListener("click", createVaultNote);
+  if (cancelBtn) cancelBtn.addEventListener("click", () => { if (modal) modal.style.display = "none"; });
+
+  // Load tree when Memory Bay becomes active
+  document.querySelectorAll('.nav-button[data-page="memory-bay"]').forEach(btn => {
+    btn.addEventListener("click", () => setTimeout(loadVaultTree, 100));
+  });
 }
 
 function setActive(buttons, value, key) { buttons.forEach((button) => button.classList.toggle("is-active", button.dataset[key] === value)); }
@@ -759,6 +926,7 @@ async function init() {
   bindEvents();
   initScene();
   initAce();
+  initVaultEditor();
   requestAnimationFrame(drawAvatar);
   try {
     await loadApp();

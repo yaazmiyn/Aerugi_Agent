@@ -578,6 +578,58 @@ class MissionControlService:
             (system_root / "vault-map.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
         return {"vault_path": str(root), "exists": True, "notes": notes, "counts": counts}
 
+    def get_vault_tree(self) -> dict[str, Any]:
+        """Return the vault folder/file tree for the in-app editor sidebar."""
+        root = self._vault_root()
+        if not root.exists():
+            return {"ok": True, "tree": [], "vault_path": str(root), "exists": False}
+        tree = []
+        for folder in sorted(root.iterdir()):
+            if folder.is_dir() and not folder.name.startswith(".") and folder.name not in ("90 Templates", "99 System"):
+                notes = []
+                for md in sorted(folder.rglob("*.md")):
+                    meta, _ = split_frontmatter(md.read_text(encoding="utf-8", errors="ignore"))
+                    notes.append({
+                        "title": str(meta.get("title") or md.stem.replace("-", " ").title()),
+                        "type": str(meta.get("type") or "note"),
+                        "relative_path": str(md.relative_to(root)).replace("\\", "/"),
+                        "updated": str(meta.get("updated") or ""),
+                    })
+                tree.append({"folder": folder.name, "notes": notes})
+        return {"ok": True, "tree": tree, "vault_path": str(root), "exists": True}
+
+    def get_vault_note(self, relative_path: str) -> dict[str, Any]:
+        """Return the raw content and frontmatter of a vault note by relative path."""
+        root = self._vault_root()
+        path = (root / relative_path).resolve()
+        if not str(path).startswith(str(root.resolve())):
+            return {"ok": False, "error": "Path outside vault."}
+        if not path.exists():
+            return {"ok": False, "error": "Note not found."}
+        raw = path.read_text(encoding="utf-8", errors="ignore")
+        meta, body = split_frontmatter(raw)
+        return {
+            "ok": True,
+            "relative_path": relative_path,
+            "raw": raw,
+            "frontmatter": meta,
+            "body": body,
+            "title": str(meta.get("title") or path.stem.replace("-", " ").title()),
+            "note_type": str(meta.get("type") or "note"),
+        }
+
+    def update_vault_note(self, relative_path: str, content: str) -> dict[str, Any]:
+        """Overwrite a vault note with new raw markdown content."""
+        root = self._vault_root()
+        path = (root / relative_path).resolve()
+        if not str(path).startswith(str(root.resolve())):
+            return {"ok": False, "error": "Path outside vault."}
+        if not path.exists():
+            return {"ok": False, "error": "Note not found."}
+        path.write_text(content, encoding="utf-8")
+        self._vault_index(write_files=True)
+        return {"ok": True, "relative_path": relative_path, "saved_at": utc_now()}
+
     def _memory_status(self) -> dict[str, Any]:
         index = self._vault_index(write_files=False)
         return {"ok": True, "vault_path": index["vault_path"], "vault_exists": index["exists"], "note_count": len(index["notes"]), "counts": index["counts"], "capture_queue_count": len(self.state.get("capture_queue", [])), "selected_context_count": len(self.state.get("selected_context_note_ids", [])), "memory_mode": self.state.get("memory_mode"), "capture_mode": self.state.get("capture_mode"), "letta": self._letta_status(), "last_vault_sync_at": self.state.get("last_vault_sync_at"), "last_letta_sync_at": self.state.get("last_letta_sync_at")}
@@ -940,6 +992,18 @@ class MissionRequestHandler(SimpleHTTPRequestHandler):
         if parsed.path == "/api/vault/index":
             self._write_json(HTTPStatus.OK, {"ok": True, **SERVICE._vault_index(write_files=False)})
             return
+        if parsed.path == "/api/vault/tree":
+            self._write_json(HTTPStatus.OK, SERVICE.get_vault_tree())
+            return
+        if parsed.path == "/api/vault/note":
+            from urllib.parse import parse_qs
+            qs = parse_qs(parsed.query)
+            rel = qs.get("path", [""])[0]
+            if not rel:
+                self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "path param required"})
+            else:
+                self._write_json(HTTPStatus.OK, SERVICE.get_vault_note(rel))
+            return
         if parsed.path == "/api/research/status":
             self._write_json(HTTPStatus.OK, SERVICE._research_status())
             return
@@ -990,6 +1054,24 @@ class MissionRequestHandler(SimpleHTTPRequestHandler):
                 return
             if parsed.path == "/api/vault/capture":
                 self._write_json(HTTPStatus.OK, SERVICE.capture_to_vault(body))
+                return
+            if parsed.path == "/api/vault/note":
+                rel_path = body.get("path", "")
+                content = body.get("content", "")
+                if not rel_path or not content:
+                    self._write_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "path and content required"})
+                else:
+                    self._write_json(HTTPStatus.OK, SERVICE.update_vault_note(rel_path, content))
+                return
+            if parsed.path == "/api/vault/note/new":
+                result = SERVICE._write_note(
+                    note_type=body.get("type", "knowledge"),
+                    title=body.get("title", "Untitled"),
+                    summary=body.get("summary", ""),
+                    body=body.get("body", ""),
+                    source="mission-control",
+                )
+                self._write_json(HTTPStatus.OK, {"ok": True, **result})
                 return
             if parsed.path == "/api/vault/context":
                 self._write_json(HTTPStatus.OK, SERVICE.update_context_notes(body.get("note_ids", []) if isinstance(body.get("note_ids", []), list) else []))

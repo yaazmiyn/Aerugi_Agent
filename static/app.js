@@ -499,6 +499,10 @@ function renderPages() {
 }
 function setPage(page, persist = true) {
   if (!PAGE_IDS.has(page)) return;
+  if (appState.scene?.warpState) {
+    appState.scene.warpState.active = true;
+    appState.scene.warpState.progress = 0;
+  }
   if (appState.mission) appState.mission.active_page = page;
   renderPages();
   if (persist) queuePatch({ active_page: page });
@@ -880,45 +884,169 @@ function drawAvatar(now) {
 }
 
 function initScene() {
-  const renderer = new THREE.WebGLRenderer({ canvas: elements.sceneCanvas, alpha: true, antialias: true });
+  const canvas = document.getElementById("mission-scene");
+  if (!canvas) return;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 100);
-  camera.position.z = 18;
-  const stars = new THREE.BufferGeometry();
-  const positions = new Float32Array(600 * 3);
-  for (let i = 0; i < positions.length; i += 3) {
-    positions[i] = (Math.random() - 0.5) * 36;
-    positions[i + 1] = (Math.random() - 0.5) * 24;
-    positions[i + 2] = (Math.random() - 0.5) * 20;
+  const camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 200);
+  camera.position.z = 28;
+
+  const PARTICLE_COUNT = window.devicePixelRatio > 1 ? 3000 : 1800;
+  const positions = new Float32Array(PARTICLE_COUNT * 3);
+  const colors = new Float32Array(PARTICLE_COUNT * 3);
+  const sizes = new Float32Array(PARTICLE_COUNT);
+  const speeds = new Float32Array(PARTICLE_COUNT);
+
+  for (let i = 0; i < PARTICLE_COUNT; i++) {
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos(2 * Math.random() - 1);
+    const r = 8 + Math.random() * 22;
+    positions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+    positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+    positions[i * 3 + 2] = r * Math.cos(phi);
+    sizes[i] = 0.06 + Math.random() * 0.14;
+    speeds[i] = 0.2 + Math.random() * 0.8;
+    colors[i * 3] = 1; colors[i * 3 + 1] = 0.43; colors[i * 3 + 2] = 0.71;
   }
-  stars.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  const starField = new THREE.Points(stars, new THREE.PointsMaterial({ color: 0xffffff, size: 0.08, transparent: true, opacity: 0.82 }));
-  scene.add(starField);
-  const planes = [];
-  [0xffc1e0, 0xbfe8ff, 0xd8c3ff, 0xffd7c6].forEach((color, index) => {
-    const mesh = new THREE.Mesh(new THREE.PlaneGeometry(8 + index * 2.2, 4 + index * 1.2), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.1 + index * 0.03 }));
-    mesh.position.set((index - 1.5) * 4.8, 2 - index * 1.2, -6 - index * 2.2);
-    mesh.rotation.z = index * 0.22;
-    scene.add(mesh);
-    planes.push(mesh);
+
+  const CLUSTER_COUNT = 800;
+  const clusterPositions = new Float32Array(CLUSTER_COUNT * 3);
+  const clusterColors = new Float32Array(CLUSTER_COUNT * 3);
+  const clusterSizes = new Float32Array(CLUSTER_COUNT);
+  for (let i = 0; i < CLUSTER_COUNT; i++) {
+    const cx = (Math.random() - 0.5) * 30;
+    const cy = (Math.random() - 0.5) * 20;
+    const cz = (Math.random() - 0.5) * 20 - 5;
+    clusterPositions[i * 3] = cx + (Math.random() - 0.5) * 8;
+    clusterPositions[i * 3 + 1] = cy + (Math.random() - 0.5) * 8;
+    clusterPositions[i * 3 + 2] = cz + (Math.random() - 0.5) * 6;
+    clusterSizes[i] = 0.3 + Math.random() * 0.6;
+    clusterColors[i * 3] = 0.68; clusterColors[i * 3 + 1] = 0.43; clusterColors[i * 3 + 2] = 0.98;
+  }
+
+  const vertexShader = `
+    attribute float size;
+    attribute vec3 color;
+    varying vec3 vColor;
+    varying float vAlpha;
+    uniform float uTime;
+    void main() {
+      vColor = color;
+      float flicker = 0.7 + 0.3 * sin(uTime * 2.0 + position.x * 3.14);
+      vAlpha = flicker;
+      vec4 mvPos = modelViewMatrix * vec4(position, 1.0);
+      gl_PointSize = size * (300.0 / -mvPos.z);
+      gl_Position = projectionMatrix * mvPos;
+    }
+  `;
+  const fragmentShader = `
+    varying vec3 vColor;
+    varying float vAlpha;
+    void main() {
+      float d = length(gl_PointCoord - vec2(0.5));
+      if (d > 0.5) discard;
+      float alpha = (1.0 - d * 2.0) * vAlpha * 0.85;
+      gl_FragColor = vec4(vColor, alpha);
+    }
+  `;
+
+  const uniformsParticles = { uTime: { value: 0 } };
+  const particleMat = new THREE.ShaderMaterial({
+    uniforms: uniformsParticles,
+    vertexShader, fragmentShader,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
   });
-  appState.scene = { renderer, scene, camera, starField, planes };
-  function resize() {
-    renderer.setSize(window.innerWidth, window.innerHeight, false);
+
+  const particleGeo = new THREE.BufferGeometry();
+  particleGeo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  particleGeo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  particleGeo.setAttribute("size", new THREE.BufferAttribute(sizes, 1));
+  const particles = new THREE.Points(particleGeo, particleMat);
+
+  const clusterGeo = new THREE.BufferGeometry();
+  clusterGeo.setAttribute("position", new THREE.BufferAttribute(clusterPositions, 3));
+  clusterGeo.setAttribute("color", new THREE.BufferAttribute(clusterColors, 3));
+  clusterGeo.setAttribute("size", new THREE.BufferAttribute(clusterSizes, 1));
+  const clusterMat = new THREE.ShaderMaterial({
+    uniforms: { uTime: { value: 0 } },
+    vertexShader, fragmentShader,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const clusters = new THREE.Points(clusterGeo, clusterMat);
+
+  scene.add(particles);
+  scene.add(clusters);
+
+  const warpState = { active: false, progress: 0 };
+
+  appState.scene = { renderer, scene, camera, particles, clusters, particleMat, clusterMat, uniformsParticles, positions, speeds, PARTICLE_COUNT, warpState };
+  updateNebulaColors();
+
+  window.addEventListener("resize", () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+
+  requestAnimationFrame(animate);
+}
+
+function updateNebulaColors() {
+  const s = appState.scene;
+  if (!s || !s.particles) return;
+  const { primary, secondary, accent } = getCurrentPaletteColors();
+  const pc = new THREE.Color(primary);
+  const sc = new THREE.Color(secondary);
+  const ac = new THREE.Color(accent);
+  const colAttr = s.particles.geometry.attributes.color;
+  for (let i = 0; i < s.PARTICLE_COUNT; i++) {
+    const mix = Math.random();
+    const c = mix < 0.5 ? pc.clone().lerp(sc, mix * 2) : sc.clone().lerp(ac, (mix - 0.5) * 2);
+    colAttr.setXYZ(i, c.r, c.g, c.b);
   }
-  resize();
-  window.addEventListener("resize", resize);
-  function animate(time) {
-    const t = time * 0.0003;
-    starField.rotation.y = t * 0.4 + appState.pointer.x * 0.18;
-    starField.rotation.x = t * 0.2 + appState.pointer.y * 0.1;
-    planes.forEach((plane, index) => { plane.position.y += Math.sin(t * 12 + index) * 0.002; plane.rotation.z += 0.0005 + index * 0.00018; });
-    renderer.render(scene, camera);
-    requestAnimationFrame(animate);
+  colAttr.needsUpdate = true;
+  const cc = s.clusters.geometry.attributes.color;
+  for (let i = 0; i < 800; i++) {
+    cc.setXYZ(i, pc.r * 0.6, pc.g * 0.6, pc.b * 0.9);
   }
+  cc.needsUpdate = true;
+}
+
+function animate(time) {
+  const s = appState.scene;
+  if (!s || !s.particles) return;
+  const t = time * 0.0002;
+
+  s.uniformsParticles.uTime.value = t;
+  s.clusterMat.uniforms.uTime.value = t * 0.6;
+
+  const pos = s.particles.geometry.attributes.position;
+  for (let i = 0; i < s.PARTICLE_COUNT; i++) {
+    pos.setY(i, pos.getY(i) + Math.sin(t * s.speeds[i] + i) * 0.0008);
+    pos.setX(i, pos.getX(i) + Math.cos(t * s.speeds[i] * 0.7 + i * 0.3) * 0.0004);
+  }
+  pos.needsUpdate = true;
+
+  if (s.warpState.active) {
+    s.warpState.progress = Math.min(1, s.warpState.progress + 0.04);
+    const warpZ = Math.sin(s.warpState.progress * Math.PI) * 12;
+    s.camera.position.z = 28 - warpZ;
+    if (s.warpState.progress >= 1) {
+      s.warpState.active = false;
+      s.warpState.progress = 0;
+      s.camera.position.z = 28;
+    }
+  }
+
+  s.particles.rotation.y = t * 0.05 + (appState.pointer?.x || 0) * 0.08;
+  s.particles.rotation.x = t * 0.02 + (appState.pointer?.y || 0) * 0.04;
+  s.clusters.rotation.y = t * 0.03;
+
+  s.renderer.render(s.scene, s.camera);
   requestAnimationFrame(animate);
 }
 

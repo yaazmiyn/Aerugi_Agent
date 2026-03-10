@@ -2,17 +2,39 @@
 
 Local-first mission control for Hermes, Ollama, Obsidian memory, Letta MemFS staging, Research Ops, and approval-gated Company Ops.
 
-## Run
+## Quick Start
 
+### Option 1: PowerShell (Recommended)
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\start-mission-control.ps1
 ```
 
-Default URL:
+### Option 2: Direct Python
+```bash
+python server.py
+```
 
+Default URL:
 ```text
 http://127.0.0.1:8765
 ```
+
+## Feature Status
+
+| Feature | Status | Dependencies |
+|---------|--------|--------------|
+| Command Bridge (Hermes chat over Ollama) | ✅ Online | Ollama running |
+| Memory Bay (Obsidian in-app editor) | ✅ Online | Obsidian vault path configured |
+| Research Ops (mission specs & vault promotion) | ✅ Online | Obsidian vault |
+| Company Ops (approval queue) | ✅ Online | Local only |
+| Skills Bay (risk labels, prerequisites, arming) | ✅ Online | Local only |
+| Letta memory staging | ⚠️ Graceful Offline | Letta on port 8283 (optional) |
+| Notebook export sync | ⚠️ Graceful Offline | Open Notebook on port 8091 (optional) |
+| Paperclip integration | ⚠️ Graceful Offline | External service (optional) |
+| ACE self-improvement loop | ✅ Online | Ollama (manual trigger: `/api/ace/run`) |
+| Three.js particle nebula background | ✅ Online | None |
+| Hermes avatar animations | ✅ Online | None |
+| UI micro-animations | ✅ Online | None |
 
 ## What Is Included
 
@@ -78,3 +100,40 @@ Promoted research notes are written to the Obsidian vault and can also be synced
 - `start-mission-control.ps1` - launcher using the Hermes Python runtime
 - `external/get-shit-done` - local workflow source, if present
 - `external/awesome-openclaw-skills` - local skill catalog source, if present
+
+## Environment Variables
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `ANTHROPIC_API_KEY` | No | Enable Claude API features (optional for local-only mode) |
+| `HERMES_VAULT_PATH` | No | Custom Obsidian vault path (defaults to `C:\Users\lamar\OneDrive\Documents\Hermes Vault`) |
+
+## Integration Status
+
+### Always Online (No External Dependencies)
+- Command Bridge with Hermes chat over Ollama
+- Research Ops with local mission specs
+- Company Ops with approval queue
+- Skills Bay with risk management
+- Vault note CRUD endpoints
+- ACE self-improvement loop (local inference via Ollama)
+
+### Graceful Offline (Optional External Services)
+- **Letta Memory Staging**: Requires `http://127.0.0.1:8283` (start Letta on port 8283)
+- **Notebook Export**: Requires `http://127.0.0.1:8091` (start Open Notebook on port 8091)
+- **Paperclip Integration**: Offline adapter active, external service optional
+
+### Next Steps After Starting
+
+1. Check the Hermes avatar in the top-right to confirm server is running
+2. Navigate to Memory Bay to explore the Obsidian vault in-app editor
+3. Use Skills Bay to view available skills and enable them
+4. Create a research mission in Research Ops to test the workflow
+5. (Optional) Start Letta and Open Notebook for full feature set
+
+## Troubleshooting
+
+- **Port 8765 in use**: Change the port in `server.py` or kill the existing process
+- **Vault not found**: Verify the Obsidian vault path matches your setup
+- **Ollama connection failed**: Ensure Ollama is running (`ollama serve`)
+- **ACE loop errors**: Check that a local LLM is available via Ollama

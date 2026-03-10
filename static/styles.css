@@ -681,3 +681,96 @@ body::before {
   color: var(--ink);
 }
 .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; }
+
+/* ── Window Micro-animations ──────────────────────── */
+@keyframes windowOpen {
+  from { opacity: 0; transform: scale(0.88) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes windowClose {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.88) translateY(8px); }
+}
+.window.is-animating-open { animation: windowOpen 200ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.window.is-animating-close { animation: windowClose 150ms ease-in forwards; pointer-events: none; }
+
+/* ── Page Slide Transitions ───────────────────────── */
+@keyframes pageSlideIn {
+  from { opacity: 0; transform: translateX(2%) scale(0.99); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes pageSlideOut {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(-2%); }
+}
+.page.is-entering { animation: pageSlideIn 260ms ease-out forwards; }
+.page.is-leaving  { animation: pageSlideOut 180ms ease-in forwards; pointer-events: none; }
+
+/* ── Button Shimmer ───────────────────────────────── */
+.btn-primary { position: relative; overflow: hidden; }
+.btn-primary::before {
+  content: "";
+  position: absolute;
+  top: 0; left: -100%;
+  width: 60%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  transition: left 500ms ease;
+  pointer-events: none;
+}
+.btn-primary:hover::before { left: 140%; }
+
+/* ── Skill Arm Burst ──────────────────────────────── */
+@keyframes burstParticle {
+  0%   { transform: translate(0, 0) scale(1); opacity: 0.9; }
+  100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+}
+.burst-particle {
+  position: fixed;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 9999;
+  animation: burstParticle 600ms ease-out forwards;
+}
+
+/* ── Chat Message Slide ───────────────────────────── */
+@keyframes msgSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.chat-msg { animation: msgSlideUp 180ms ease-out; }
+
+/* ── Risk Badges ──────────────────────────────────── */
+.risk-badge {
+  padding: 1px 7px;
+  border-radius: 10px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.risk-low    { background: var(--success); color: #1a5c50; }
+.risk-medium { background: var(--warning); color: #7a4010; }
+.risk-high   { background: var(--danger);  color: #7a1530; }
+
+.prereq-chip {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 0.63rem;
+  background: var(--sky-200);
+  color: var(--ink);
+  margin-right: 3px;
+}
+
+.btn-danger-outline {
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  background: transparent;
+  padding: 4px 12px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+.btn-danger-outline:hover { background: var(--danger); color: white; }

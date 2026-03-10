@@ -128,7 +128,7 @@ const appState = {
   pointer: { x: 0, y: 0 },
   audioContext: null,
   audioUnlocked: false,
-  avatar: { typing: 0, speakingUntil: 0, bubble: "Standing by in local mode.", mood: "Idle" },
+  avatar: { typing: 0, speakingUntil: 0, bubble: "Standing by in local mode.", mood: "Idle", presence: "boot" },
   scene: null,
 };
 
@@ -341,6 +341,49 @@ function initVaultEditor() {
   });
 }
 
+// ── UI Micro-animations ───────────────────────────
+function burstParticles(x, y, color) {
+  for (var i = 0; i < 10; i++) {
+    var p = document.createElement("div");
+    p.className = "burst-particle";
+    var angle = Math.random() * Math.PI * 2;
+    var dist = 30 + Math.random() * 50;
+    p.style.cssText = "left:" + x + "px;top:" + y + "px;background:" + color +
+      ";--dx:" + (Math.cos(angle) * dist) + "px;--dy:" + (Math.sin(angle) * dist) + "px";
+    document.body.appendChild(p);
+    setTimeout(function() { p.remove(); }, 620);
+  }
+}
+
+function addMagneticHover(el, strength) {
+  strength = strength || 3;
+  el.addEventListener("mousemove", function(e) {
+    var rect = el.getBoundingClientRect();
+    var dx = (e.clientX - rect.left - rect.width / 2) / rect.width;
+    var dy = (e.clientY - rect.top - rect.height / 2) / rect.height;
+    el.style.transform = "translate(" + (dx * strength) + "px," + (dy * strength) + "px)";
+  });
+  el.addEventListener("mouseleave", function() { el.style.transform = ""; });
+}
+
+function initMicroAnimations() {
+  // Magnetic hover on nav buttons
+  document.querySelectorAll('[data-page]').forEach(function(el) {
+    if (el.tagName === 'BUTTON' || el.classList.contains('nav-button')) addMagneticHover(el, 3);
+  });
+
+  // Skill arm particle burst via event delegation
+  document.addEventListener("click", function(e) {
+    var armBtn = e.target.closest("[data-arm-skill], [data-workflow]");
+    if (armBtn) {
+      var rect = armBtn.getBoundingClientRect();
+      var colors = getCurrentPaletteColors();
+      burstParticles(rect.left + rect.width / 2, rect.top + rect.height / 2,
+        "#" + colors.primary.toString(16).padStart(6, "0"));
+    }
+  });
+}
+
 function setActive(buttons, value, key) { buttons.forEach((button) => button.classList.toggle("is-active", button.dataset[key] === value)); }
 function labelTime(value) { return value ? value.replace("T", " ").replace("Z", "") : "Never"; }
 function trimText(value, limit = 180) { const text = String(value || "").replace(/\s+/g, " ").trim(); return text.length <= limit ? text : `${text.slice(0, Math.max(0, limit - 3)).trim()}...`; }
@@ -493,9 +536,17 @@ function renderStatus() {
 }
 
 function renderPages() {
-  const page = appState.mission?.active_page || "command-bridge";
-  elements.pageSections.forEach((section) => section.classList.toggle("is-active", section.dataset.page === page));
-  elements.navButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.page === page));
+  const currentPage = appState.mission?.active_page || "command-bridge";
+  elements.pageSections.forEach(function(section) {
+    var isTarget = section.dataset.page === currentPage;
+    var wasActive = section.classList.contains("is-active");
+    if (isTarget && !wasActive) {
+      section.classList.add("is-entering");
+      setTimeout(function() { section.classList.remove("is-entering"); }, 280);
+    }
+    section.classList.toggle("is-active", isTarget);
+  });
+  elements.navButtons.forEach((button) => button.classList.toggle("is-active", button.dataset.page === currentPage));
 }
 function setPage(page, persist = true) {
   if (!PAGE_IDS.has(page)) return;
@@ -590,7 +641,8 @@ function renderSkills() {
   filteredGsd().forEach((item) => {
     const node = document.createElement("div");
     node.className = "skill-item";
-    node.innerHTML = `<div class="topline"><h4>${item.title}</h4><span class="pill">${item.lane}</span></div><div class="muted">${item.description}</div><div class="row-actions"><button class="ui-button ${appState.mission.armed_workflows.includes(item.id) ? "primary" : ""}" type="button">${appState.mission.armed_workflows.includes(item.id) ? "Armed" : "Arm"}</button></div>`;
+    const riskLevel = item.riskLevel || (item.lane === "ops" || item.lane === "strategy" ? "medium" : "low");
+    node.innerHTML = `<div class="topline"><h4>${item.title}</h4><span class="pill">${item.lane}</span><span class="risk-badge risk-${riskLevel}">${riskLevel}</span></div><div class="muted">${item.description}</div><div class="row-actions"><button class="ui-button ${appState.mission.armed_workflows.includes(item.id) ? "primary" : ""}" data-workflow="${item.id}" type="button">${appState.mission.armed_workflows.includes(item.id) ? "Armed" : "Arm"}</button></div>`;
     node.querySelector("button").addEventListener("click", () => toggleWorkflow(item.id));
     elements.gsdPanel.appendChild(node);
   });
@@ -607,7 +659,8 @@ function renderSkills() {
   filteredOpenclaw().forEach((item) => {
     const node = document.createElement("div");
     node.className = "skill-item";
-    node.innerHTML = `<div class="topline"><h4>${item.title}</h4><span class="pill">${item.category_label}</span></div><div class="muted">${item.description}</div><div class="row-actions"><button class="ui-button ${appState.mission.armed_skills.includes(item.id) ? "primary" : ""}" type="button">${appState.mission.armed_skills.includes(item.id) ? "Armed" : "Arm"}</button><a class="ui-button" href="${item.url}" target="_blank" rel="noreferrer">Source</a></div>`;
+    const riskLevel = item.riskLevel || "low";
+    node.innerHTML = `<div class="topline"><h4>${item.title}</h4><span class="pill">${item.category_label}</span><span class="risk-badge risk-${riskLevel}">${riskLevel}</span></div><div class="muted">${item.description}</div><div class="row-actions"><button class="ui-button ${appState.mission.armed_skills.includes(item.id) ? "primary" : ""}" data-arm-skill="${item.id}" type="button">${appState.mission.armed_skills.includes(item.id) ? "Armed" : "Arm"}</button><a class="ui-button" href="${item.url}" target="_blank" rel="noreferrer">Source</a></div>`;
     node.querySelector("button").addEventListener("click", () => toggleSkill(item.id));
     elements.openclawList.appendChild(node);
   });
@@ -792,6 +845,7 @@ function bindEvents() {
     buzz([10, 20, 10]);
     elements.chatStatus.textContent = "Hermes is thinking in local mode...";
     setSpeech("Thinking in local mode...", "Thinking", true);
+    appState.avatar.presence = "thinking";
     const chatPayload = await fetchJSON("/api/chat", { method: "POST", body: JSON.stringify({ message }) });
     appState.mission = chatPayload.state || appState.mission;
     applyStatus(await fetchJSON("/api/status"));
@@ -800,6 +854,8 @@ function bindEvents() {
     elements.chatStatus.textContent = "Hermes is standing by.";
     playUiSound("receive");
     setSpeech(trimText(chatPayload.response, 140), "Responding", true);
+    appState.avatar.presence = "speaking";
+    setTimeout(function() { appState.avatar.presence = "online"; }, 2000);
     await refreshMemory();
   });
   elements.saveStateButton.addEventListener("click", async () => { await flushPatch(); toast("Mission Control", "Layout and control state saved."); playUiSound("switch"); });
@@ -881,6 +937,103 @@ function drawAvatar(now) {
   ctx.strokeStyle = "#71508d"; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(cx - 12, cy + 28); ctx.lineTo(cx, cy + 32); ctx.lineTo(cx + 12, cy + 28); ctx.stroke();
   ctx.fillStyle = "#ff93b8"; ctx.beginPath(); ctx.ellipse(cx, cy + 54, 14, mouth, 0, 0, Math.PI * 2); ctx.fill();
   requestAnimationFrame(drawAvatar);
+}
+
+function drawHermesAvatar(time) {
+  var canvas = document.getElementById("hermes-avatar");
+  if (!canvas) return;
+  var ctx = canvas.getContext("2d");
+  var W = canvas.width, H = canvas.height;
+  var cx = W / 2, cy = H / 2;
+  var presence = appState.avatar?.presence || "boot";
+  var t = time * 0.001;
+
+  ctx.clearRect(0, 0, W, H);
+
+  var colors = getCurrentPaletteColors();
+  var primary = "#" + colors.primary.toString(16).padStart(6, "0");
+  var secondary = "#" + colors.secondary.toString(16).padStart(6, "0");
+
+  // Base glow ring
+  var ringAlpha = (presence === "boot" || presence === "offline") ? 0.18 : 0.55;
+  var ringRadius = 160 + Math.sin(t * 1.4) * (presence === "boot" ? 4 : 8);
+  ctx.beginPath();
+  ctx.arc(cx, cy, ringRadius, 0, Math.PI * 2);
+  ctx.strokeStyle = primary + (ringAlpha > 0.5 ? "88" : "2e");
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  if (presence === "online") {
+    // Spinning dashed ring + orbiting dots
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(t * 0.8);
+    ctx.setLineDash([12, 6]);
+    ctx.beginPath();
+    ctx.arc(0, 0, 172, 0, Math.PI * 2);
+    ctx.strokeStyle = secondary + "88";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    ctx.restore();
+    ctx.setLineDash([]);
+    for (var i = 0; i < 3; i++) {
+      var angle = t * 1.2 + (i * Math.PI * 2) / 3;
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(angle) * 178, cy + Math.sin(angle) * 178, 4, 0, Math.PI * 2);
+      ctx.fillStyle = secondary;
+      ctx.fill();
+    }
+  } else if (presence === "waking") {
+    for (var i = 0; i < 20; i++) {
+      var angle = (i / 20) * Math.PI * 2 + t * 2;
+      var dist = Math.max(20, 180 - (t % 3) * 60);
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(angle) * dist, cy + Math.sin(angle) * dist, 2.5, 0, Math.PI * 2);
+      ctx.fillStyle = primary + "cc";
+      ctx.fill();
+    }
+  } else if (presence === "thinking") {
+    ctx.globalAlpha = 0.6;
+    for (var i = 0; i < 4; i++) {
+      var angle = t * 0.6 + (i * Math.PI * 2) / 4;
+      ctx.font = "bold 16px sans-serif";
+      ctx.fillStyle = secondary;
+      ctx.fillText("?", cx + Math.cos(angle) * 175 - 5, cy + Math.sin(angle) * 175 + 5);
+    }
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 145 + Math.sin(t * 0.8) * 10, 0, Math.PI * 2);
+    ctx.strokeStyle = secondary + "55";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  } else if (presence === "speaking") {
+    for (var ring = 0; ring < 3; ring++) {
+      var baseR = 155 + ring * 18;
+      ctx.beginPath();
+      for (var a = 0; a <= Math.PI * 2; a += 0.05) {
+        var wave = Math.sin(a * 8 + t * 6 + ring * 1.2) * (10 * (1 - ring * 0.25));
+        var x = cx + Math.cos(a) * (baseR + wave);
+        var y = cy + Math.sin(a) * (baseR + wave);
+        if (a === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = primary + ["cc", "88", "44"][ring];
+      ctx.lineWidth = 2 - ring * 0.4;
+      ctx.stroke();
+    }
+  }
+
+  // Center core glow
+  var coreOp = presence === "speaking" ? 0.85 : presence === "online" ? 0.7 : 0.35;
+  var coreR = 80 + Math.sin(t * 2) * (presence === "boot" ? 3 : 6);
+  var coreGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, coreR);
+  coreGrad.addColorStop(0, primary + Math.round(coreOp * 255).toString(16).padStart(2, "0"));
+  coreGrad.addColorStop(0.6, secondary + Math.round(coreOp * 0.4 * 255).toString(16).padStart(2, "0"));
+  coreGrad.addColorStop(1, primary + "00");
+  ctx.beginPath();
+  ctx.arc(cx, cy, coreR, 0, Math.PI * 2);
+  ctx.fillStyle = coreGrad;
+  ctx.fill();
 }
 
 function initScene() {
@@ -1046,6 +1199,7 @@ function animate(time) {
   s.particles.rotation.x = t * 0.02 + (appState.pointer?.y || 0) * 0.04;
   s.clusters.rotation.y = t * 0.03;
 
+  drawHermesAvatar(time);
   s.renderer.render(s.scene, s.camera);
   requestAnimationFrame(animate);
 }
@@ -1055,6 +1209,27 @@ async function init() {
   initScene();
   initAce();
   initVaultEditor();
+  initMicroAnimations();
+
+  var disarmBtn = document.getElementById("disarm-all-btn");
+  if (disarmBtn) {
+    disarmBtn.addEventListener("click", function() {
+      sessionStorage.removeItem("armed_skills");
+      sessionStorage.removeItem("armed_workflows");
+      fetchJSON("/api/state", {
+        method: "POST",
+        body: JSON.stringify({ armed_skills: [], armed_workflows: [], armed_scientific_skills: [] }),
+      }).then(function(payload) {
+        applyStatus(payload);
+      }).catch(function() {});
+      if (appState.mission) {
+        appState.mission.armed_skills = [];
+        appState.mission.armed_workflows = [];
+      }
+      renderSkills();
+    });
+  }
+
   requestAnimationFrame(drawAvatar);
   try {
     await loadApp();

@@ -899,45 +899,7 @@ function resizeCanvasToDisplaySize(canvas) {
   if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; return true; }
   return false;
 }
-function drawAvatar(now) {
-  const canvas = elements.avatarCanvas;
-  if (!canvas) return;
-  resizeCanvasToDisplaySize(canvas);
-  const ctx = canvas.getContext("2d");
-  const width = canvas.width;
-  const height = canvas.height;
-  const t = now * 0.001;
-  const bob = Math.sin(t * 1.8) * 10;
-  const lookX = appState.pointer.x * 16;
-  const lookY = appState.pointer.y * 10;
-  const speaking = now < appState.avatar.speakingUntil;
-  const mouth = speaking ? 6 + Math.sin(t * 18) * 4 : 2 + appState.avatar.typing * 4;
-  const blinkSeed = (Math.sin(t * 0.8) + 1) * 0.5;
-  const blink = blinkSeed > 0.96 ? 0.15 : 1;
-  ctx.clearRect(0, 0, width, height);
-  const bg = ctx.createLinearGradient(0, 0, 0, height);
-  bg.addColorStop(0, "rgba(193,228,255,0.68)"); bg.addColorStop(1, "rgba(255,197,229,0.68)");
-  ctx.fillStyle = bg; ctx.fillRect(0, 0, width, height);
-  ctx.fillStyle = "rgba(255,255,255,0.34)";
-  for (let i = 0; i < 24; i += 1) { const x = (i * 83 + t * 26) % (width + 80); const y = ((i * 47) % (height + 60)) - 40 + Math.sin(t + i) * 4; ctx.fillRect(x, y, 2, 2); }
-  const cx = width * 0.5; const cy = height * 0.52 + bob;
-  ctx.fillStyle = "rgba(110, 71, 152, 0.18)"; ctx.beginPath(); ctx.ellipse(cx, height * 0.86, width * 0.18, height * 0.05, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "#f7aacb";
-  ctx.beginPath(); ctx.moveTo(cx - 118, cy - 122); ctx.lineTo(cx - 72, cy - 210); ctx.lineTo(cx - 28, cy - 126); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(cx + 118, cy - 122); ctx.lineTo(cx + 72, cy - 210); ctx.lineTo(cx + 28, cy - 126); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = "#ffb8d4"; ctx.beginPath(); ctx.ellipse(cx, cy - 20, 126, 138, 0, Math.PI, 0); ctx.fill();
-  ctx.fillStyle = "#f9d7e6"; ctx.beginPath(); ctx.ellipse(cx, cy + 18, 102, 112, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "#f29fc7"; ctx.beginPath(); ctx.moveTo(cx - 118, cy - 10); ctx.quadraticCurveTo(cx - 146, cy + 70, cx - 82, cy + 130); ctx.quadraticCurveTo(cx - 28, cy + 112, cx - 22, cy + 32); ctx.closePath(); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(cx + 118, cy - 10); ctx.quadraticCurveTo(cx + 146, cy + 70, cx + 82, cy + 130); ctx.quadraticCurveTo(cx + 28, cy + 112, cx + 22, cy + 32); ctx.closePath(); ctx.fill();
-  ctx.fillStyle = "#ffd4e9"; ctx.beginPath(); ctx.ellipse(cx, cy + 92, 56, 40, 0, 0, Math.PI * 2); ctx.fill();
-  const eyeY = cy + 4 + lookY; const eyeLX = cx - 42 + lookX; const eyeRX = cx + 42 + lookX;
-  ctx.fillStyle = "#6b5fd6"; ctx.beginPath(); ctx.ellipse(eyeLX, eyeY, 18, 22 * blink, 0, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.ellipse(eyeRX, eyeY, 18, 22 * blink, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = "rgba(255,255,255,0.88)"; if (blink > 0.2) { ctx.beginPath(); ctx.ellipse(eyeLX - 5, eyeY - 7, 5, 6, 0, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.ellipse(eyeRX - 5, eyeY - 7, 5, 6, 0, 0, Math.PI * 2); ctx.fill(); }
-  ctx.fillStyle = "#f59bb7"; ctx.beginPath(); ctx.ellipse(cx - 70, cy + 36, 18, 9, 0, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.ellipse(cx + 70, cy + 36, 18, 9, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.strokeStyle = "#71508d"; ctx.lineWidth = 3; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(cx - 12, cy + 28); ctx.lineTo(cx, cy + 32); ctx.lineTo(cx + 12, cy + 28); ctx.stroke();
-  ctx.fillStyle = "#ff93b8"; ctx.beginPath(); ctx.ellipse(cx, cy + 54, 14, mouth, 0, 0, Math.PI * 2); ctx.fill();
-  requestAnimationFrame(drawAvatar);
-}
+/* Old drawAvatar removed — replaced by drawHermesAvatar with 5 expressive presence states */
 
 function drawHermesAvatar(time) {
   var canvas = document.getElementById("hermes-avatar");
@@ -1230,7 +1192,18 @@ async function init() {
     });
   }
 
-  requestAnimationFrame(drawAvatar);
+  // Wire palette selector
+  document.querySelectorAll(".palette-swatch").forEach(function(swatch) {
+    swatch.addEventListener("click", function() {
+      var palette = swatch.dataset.palette;
+      document.body.dataset.uiPalette = palette;
+      document.querySelectorAll(".palette-swatch").forEach(function(s) { s.classList.remove("active"); });
+      swatch.classList.add("active");
+      updateNebulaColors();
+    });
+  });
+
+  /* drawHermesAvatar is called from the animate() loop started by initScene() */
   try {
     await loadApp();
     setSpeech("Mission shell online. Choose a lane and talk to Hermes.", "Online");

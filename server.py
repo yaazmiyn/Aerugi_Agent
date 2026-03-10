@@ -473,10 +473,25 @@ class MissionControlService:
 
         return self.get_status()
 
-    def run_ace_loop(self, transcript: list[dict] | None = None) -> dict[str, Any]:
+    def run_ace_loop(self, transcript: list[dict] | str | None = None) -> dict[str, Any]:
         """Run an ACE self-improvement cycle on the current (or provided) chat transcript."""
         with self.lock:
-            log = transcript if transcript is not None else list(self.state.get("chat_log", []))
+            if transcript is not None:
+                if isinstance(transcript, str):
+                    # If a raw string transcript was passed, convert to chat-log format
+                    lines = transcript.strip().split("\n")
+                    log = []
+                    for line in lines:
+                        if line.startswith("User:"):
+                            log.append({"role": "user", "content": line[5:].strip()})
+                        elif line.startswith("Assistant:") or line.startswith("Hermes:"):
+                            log.append({"role": "assistant", "content": line.split(":", 1)[1].strip()})
+                    if not log:
+                        log = [{"role": "user", "content": transcript}]
+                else:
+                    log = list(transcript)
+            else:
+                log = list(self.state.get("chat_log", []))
 
         if len(log) < 4:
             return {"ok": True, "skipped": True, "reason": "Transcript too short for ACE (need >= 4 turns)."}
